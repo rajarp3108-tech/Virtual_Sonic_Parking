@@ -1,0 +1,61 @@
+@startuml
+' Sequence Diagram - SRS section 15
+' One TCP client request handled while the monitoring loop keeps running.
+
+skinparam shadowing false
+autonumber
+
+actor "Operator" as Op
+participant "main()" as Main
+participant "ParkingMonitor" as Mon
+participant "ISensorSource\n(DeviceSensorReader)" as Sensor
+participant "kernel driver\n(kmalloc-free state + timer)" as Drv
+participant "StateManager\n(ThresholdPolicy)" as State
+participant "Logger\n(writer thread)" as Log
+database "logs/parking.log" as File
+participant "TCPStatusServer" as Tcp
+actor "TCP Client" as Cli
+
+== startup ==
+Op -> Main : parking_monitor --config app/parking.conf
+Main -> Main : MonitorConfig::load()
+Main -> Mon : construct with all services
+Mon -> Log : start() -> open file, spawn writer thread
+Mon -> Tcp : start() -> socket/bind/listen, spawn accept thread
+Mon -> Log : log_event("monitor_start")
+Mon -> Sensor : (already open in main)
+
+== one poll ==
+loop every poll_interval_ms, until SIGINT/SIGTERM
+  Mon -> Sensor : read_distance_cm()
+  Sensor -> Drv : read(fd, &data, sizeof data)
+  Drv --> Sensor : copy_to_user() -> struct parking_sensor_data
+  Sensor --> Mon : int distance_cm
+  Mon -> State : update(distance, &event)
+  State -> State : evaluate(): distance > warning ? SAFE
+  State --> Mon : changed? + current state
+  Mon -> Log : log(TelemetryRecord)
+  Log -> File : append "ts | distance=.. | state=.. | event=.."
+  Mon -> Tcp : publish(distance, state)
+  Mon -> Mon : sleep in 50 ms slices (signal friendly)
+end
+
+== a client asks for the status ==
+Cli -> Tcp : connect(127.0.0.1:9000)
+Tcp -> Tcp : accept() in the accept thread
+Tcp -> Tcp : send(latest_message_, MSG_NOSIGNAL)
+Tcp --> Cli : "STATUS distance=37 state=WARNING\n"
+Tcp -> Tcp : shutdown + close(client_fd)
+Cli -> Cli : print the status line
+
+== shutdown ==
+Op -> Main : Ctrl-C  (SIGINT) / kill (SIGTERM)
+Main -> Main : signal handler sets g_stop_requested
+Main -> Mon : run() loop notices the flag
+Mon -> Tcp : stop() -> shutdown(listen_fd) wakes accept()
+Mon -> Log : stop() -> drain queue, join thread, close file
+Mon -> Log : log_event("monitor_stop")
+Mon --> Main : summary: iterations, transitions, errors, log lines
+Main --> Op : exit code 0
+
+@enduml

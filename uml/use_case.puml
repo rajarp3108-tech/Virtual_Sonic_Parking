@@ -1,0 +1,44 @@
+@startuml
+' Use Case Diagram - SRS section 15
+' Render with:  plantuml uml/use_case.puml   (or paste into a PlantUML server)
+' An ASCII version is kept in docs/uml.md so no external tool is required.
+
+left to right direction
+skinparam packageStyle rectangle
+skinparam shadowing false
+
+actor Operator as O
+actor "TCP Client" as C
+actor "Demo Audience" as A
+
+rectangle "Virtual Parking Sensor System" {
+  usecase "Load / unload driver\n(insmod, rmmod)" as UC1
+  usecase "Read simulated distance\nfrom /dev/parking_sensor" as UC2
+  usecase "Send control command\n(reset, pause, resume)" as UC3
+  usecase "Start monitor\n(foreground or daemon)" as UC4
+  usecase "Stop monitor\n(Ctrl-C / SIGTERM)" as UC5
+  usecase "Observe parking state\nSAFE / WARNING / DANGER" as UC6
+  usecase "Read the log file" as UC7
+  usecase "Query current status over TCP" as UC8
+  usecase "Configure thresholds\nand poll interval" as UC9
+  usecase "Run the automated tests" as UC10
+}
+
+O --> UC1
+O --> UC3
+O --> UC4
+O --> UC5
+O --> UC6
+O --> UC7
+O --> UC9
+O --> UC10
+
+C --> UC8
+
+UC2 ..> UC4 : "monitor does this on every poll"
+UC6 ..> UC2 : "shows the value"
+UC6 ..> UC7 : "same data, in the log"
+
+O .. A : "watches the demonstration"
+
+@enduml

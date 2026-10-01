@@ -1,0 +1,41 @@
+@startuml
+' State Machine Diagram - SRS section 15 / section 5.3
+' The parking state machine of StateManager + ThresholdPolicy.
+
+skinparam shadowing false
+
+[*] --> SAFE : first reading taken
+
+state SAFE {
+  SAFE : distance > warning_threshold_cm (50 cm)
+}
+state WARNING {
+  WARNING : danger_threshold_cm < distance <= warning_threshold_cm
+}
+state DANGER {
+  DANGER : distance <= danger_threshold_cm (20 cm)
+}
+
+SAFE --> WARNING : distance drops to 50 cm or less
+WARNING --> SAFE : distance rises above 50 cm
+WARNING --> DANGER : distance drops to 20 cm or less
+DANGER --> WARNING : distance rises above 20 cm
+
+DANGER --> [*] : monitor stopped
+
+note right of DANGER
+  Any state can be entered
+  directly from [*] on the
+  first sample, so the machine
+  starts correctly whatever
+  the first distance is.
+end note
+
+note bottom of WARNING
+  The thresholds come from
+  MonitorConfig and can be
+  changed at start-up without
+  touching this logic (OCP).
+end note
+
+@enduml

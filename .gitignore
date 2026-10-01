@@ -1,0 +1,31 @@
+# Build output
+build/
+*.o
+*.d
+*.a
+*.so
+*.ko
+*.mod
+*.mod.c
+*.mod.o
+.*.cmd
+.tmp_versions/
+modules.order
+Module.symvers
+
+# Runtime output
+logs/
+*.log
+*.pid
+
+# Editor and OS noise
+.vscode/
+.idea/
+*.swp
+*~
+.DS_Store
+Thumbs.db
+
+# Anything that looks like a private local override
+*.local
+.env

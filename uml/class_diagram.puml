@@ -1,0 +1,164 @@
+@startuml
+' Class Diagram - SRS section 15
+' MainController = ParkingMonitor, exactly as implemented in app/.
+
+skinparam classAttributeIconSize 0
+skinparam shadowing false
+
+class TelemetryRecord <<struct>> {
+  +long timestamp
+  +int distance_cm
+  +ParkingState state
+  +string event
+}
+
+enum ParkingState <<enum class>> {
+  Safe
+  Warning
+  Danger
+}
+
+interface ISensorSource <<interface>> {
+  +virtual int read_distance_cm() = 0
+  +virtual bool send_command(cmd) = 0
+  +virtual const char* name() = 0
+}
+
+class DeviceSensorReader {
+  -string path_
+  -int fd_
+  +DeviceSensorReader(path)
+  +~DeviceSensorReader()
+  +int read_distance_cm()
+  +bool send_command(cmd)
+}
+
+class SimulatedSensorReader {
+  -int min_cm_
+  -int max_cm_
+  -int step_cm_
+  -int distance_cm_
+  -int direction_
+  +int read_distance_cm()
+  +void reset()
+}
+
+interface StatePolicy <<interface>> {
+  +virtual ParkingState evaluate(distance) = 0
+  +virtual int warning_threshold_cm() = 0
+  +virtual int danger_threshold_cm() = 0
+  +virtual string describe() = 0
+}
+
+class ThresholdPolicy {
+  -int warning_cm_
+  -int danger_cm_
+  +ParkingState evaluate(distance)
+  +string describe()
+}
+
+class StateManager {
+  -const StatePolicy& policy_
+  -ParkingState current_
+  -bool initialised_
+  -long transitions_
+  +ParkingState evaluate(distance)
+  +bool update(distance, string* event)
+  +ParkingState current()
+  +void reset()
+}
+
+class Logger {
+  -string path_
+  -ofstream out_
+  -queue<string> pending_
+  -mutex mtx_
+  -condition_variable cv_
+  -thread worker_
+  -atomic<bool> running_
+  +void start()
+  +void log(record)
+  +void log_event(message)
+  +void stop()
+  +long written()
+}
+
+class TCPStatusServer {
+  -string bind_address_
+  -int port_
+  -int listen_fd_
+  -string latest_message_
+  -mutex mtx_
+  -thread thread_
+  +void start()
+  +void publish(distance, state)
+  +void stop()
+  +bool running()
+}
+
+class ParkingMonitor <<MainController>> {
+  -MonitorConfig config_
+  -unique_ptr<ISensorSource> source_
+  -unique_ptr<StateManager> state_
+  -unique_ptr<Logger> logger_
+  -unique_ptr<TCPStatusServer> server_
+  -atomic<bool> stop_requested_
+  -long max_iterations_
+  +void run()
+  +void request_stop()
+  +void set_max_iterations(n)
+  +long iterations()
+  +long read_errors()
+  +long transitions()
+}
+
+class MonitorConfig <<struct>> {
+  +string device_path
+  +string log_path
+  +int poll_interval_ms
+  +int warning_threshold_cm
+  +int danger_threshold_cm
+  +bool tcp_enabled
+  +string bind_address
+  +int tcp_port
+  +static MonitorConfig load(path)
+}
+
+class "status_client\n(separate process)" as StatusClient {
+  +int main(argc, argv)
+}
+
+' --- relationships ---
+ISensorSource <|.. DeviceSensorReader : implements
+ISensorSource <|.. SimulatedSensorReader : implements
+StatePolicy <|.. ThresholdPolicy : implements
+
+ParkingMonitor *-- ISensorSource : source_ (composition)
+ParkingMonitor *-- StateManager : state_
+ParkingMonitor *-- Logger : logger_
+ParkingMonitor *-- TCPStatusServer : server_
+ParkingMonitor --> MonitorConfig : config_
+
+StateManager --> StatePolicy : uses policy_
+StateManager --> TelemetryRecord : produces
+Logger ..> TelemetryRecord : writes
+TCPStatusServer --> TelemetryRecord : publishes
+
+StatusClient ..> TCPStatusServer : "TCP connect()\nSTATUS distance=.. state=.."
+
+note right of ParkingMonitor
+  Composition, not aggregation:
+  the monitor owns every
+  service object and destroys
+  them in its destructor.
+end note
+
+note bottom of StateManager
+  The policy is a reference,
+  so the caller keeps it alive.
+  Swapping the policy changes
+  the state rules without
+  touching the monitor (OCP).
+end note
+
+@enduml
