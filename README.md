@@ -1,4 +1,4 @@
-# Ultrasonic Sensor
+# Ultrasonic Sensor Driver
 
 ![Language](https://img.shields.io/badge/language-C%2B%2B17-blue)
 ![Language](https://img.shields.io/badge/driver-C%20(kernel%20module)-orange)
