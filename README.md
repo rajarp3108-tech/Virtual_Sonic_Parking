@@ -5,7 +5,7 @@
 ![Platform](https://img.shields.io/badge/platform-Linux-lightgrey)
 ![Build](https://img.shields.io/badge/build-make%20%26%26%20g%2B%2B-green)
 
-A Linux virtual ultrasonic parking sensor: a character-device driver that
+A Linux virtual ultrasonic sensor driver: a character-device driver that
 simulates a distance value, a C++ monitoring application that turns it into
 `SAFE` / `WARNING` / `DANGER` and logs it, and a TCP client that reads the
 current status.
